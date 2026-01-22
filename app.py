@@ -106,8 +106,10 @@ def main():
         
         # ... (Outras funções de cadastro seguem a mesma lógica de conexão)
 
+    # --- 7. PAINEL DE LOGS (ADMIN APENAS) ---
     elif choice == "Painel de Logs":
-        st.header("🕵️ Auditoria")
+        st.header("🕵️ Auditoria (Logs do Sistema)")
+        # Note que agora usamos 'engine' (da nuvem) em vez de 'conn' (local)
         df_logs = pd.read_sql('SELECT * FROM logs ORDER BY id DESC', engine)
         st.dataframe(df_logs, use_container_width=True)
 
