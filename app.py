@@ -2,77 +2,64 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 import hashlib
-from datetime import datetime
 
-# --- INICIALIZAÇÃO DO BANCO ---
-def init_db():
+# 1. Função de Conexão (Liga o site ao Banco de Dados)
+def get_engine():
     try:
-        # Puxa a URL que você colou no Secrets
-        db_url = st.secrets["postgres_url"]
-        engine = create_engine(db_url)
-        # Cria a tabela de usuários se não existir no Supabase
-        with engine.connect() as conn:
-            conn.execute(text('''
-                CREATE TABLE IF NOT EXISTS usuarios (
-                    username TEXT PRIMARY KEY, 
-                    password TEXT, 
-                    role TEXT, 
-                    p_leitura INTEGER DEFAULT 1, 
-                    p_excluir INTEGER DEFAULT 0, 
-                    p_cadastrar INTEGER DEFAULT 0
-                )
-            '''))
-            conn.commit()
-        return engine
-    except Exception as e:
-        st.error(f"Erro de Conexão: {e}")
+        url = st.secrets["postgres_url"]
+        return create_engine(url)
+    except:
+        st.error("Erro nos Segredos do Streamlit. Verifique o Passo 4.")
         return None
 
+# 2. Função para proteger a senha
 def hash_pass(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def main():
-    st.set_page_config(page_title="SND - Hospital GACC", layout="wide")
-    
-    # Logo do GACC
-    try: st.sidebar.image("logo.png", use_container_width=True)
-    except: pass
-
-    engine = init_db()
+    st.set_page_config(page_title="SND GACC", layout="wide")
+    engine = get_engine()
     if not engine: return
 
-    if 'logged_in' not in st.session_state:
-        st.session_state['logged_in'] = False
+    # TELA DE LOGIN
+    if 'logado' not in st.session_state: st.session_state.logado = False
 
-    # --- TELA DE LOGIN ---
-    if not st.session_state['logged_in']:
+    if not st.session_state.logado:
         st.title("🏥 SND - Hospital GACC")
-        u = st.text_input("Usuário")
-        p = st.text_input("Senha", type='password')
+        user = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password")
         if st.button("Entrar"):
             with engine.connect() as conn:
-                res = conn.execute(text("SELECT * FROM usuarios WHERE username = :u"), {"u": u}).fetchone()
-                if res and hash_pass(p) == res[1]:
-                    st.session_state.update({'logged_in': True, 'user': u})
+                res = conn.execute(text("SELECT password FROM usuarios WHERE username = :u"), {"u": user}).fetchone()
+                if res and hash_pass(senha) == res[0]:
+                    st.session_state.logado = True
                     st.rerun()
-                else: st.error("Login inválido.")
+                else: st.error("Usuário ou senha incorretos.")
         return
 
-    # --- GESTÃO DE USUÁRIOS (FIX PARA O ERRO SQLITE) ---
-    st.header("👥 Controle de Acessos")
-    with st.form("novo_usuario"):
-        nu = st.text_input("Nome")
-        np = st.text_input("Senha", type='password')
-        if st.form_submit_button("Criar Usuário"):
-            try:
-                with engine.connect() as conn:
-                    # Aqui usamos o engine do Supabase, NÃO o sqlite3
-                    conn.execute(text("INSERT INTO usuarios (username, password) VALUES (:u, :p)"), 
-                                 {"u": nu, "p": hash_pass(np)})
-                    conn.commit()
-                st.success(f"Usuário {nu} cadastrado na nuvem!")
-            except Exception as e:
-                st.error(f"Erro ao salvar: {e}")
+    # MENU APÓS LOGIN
+    st.sidebar.title(f"Bem-vinda!")
+    menu = st.sidebar.radio("Navegação", ["Estoque", "Cadastros"])
+    
+    if st.sidebar.button("Sair"):
+        st.session_state.logado = False
+        st.rerun()
 
-if __name__ == '__main__':
+    if menu == "Estoque":
+        st.header("📦 Saldo de Produtos")
+        df = pd.read_sql("SELECT * FROM produtos", engine)
+        st.dataframe(df, use_container_width=True)
+
+    elif menu == "Cadastros":
+        st.header("📝 Novo Produto")
+        with st.form("cad_prod"):
+            nome = st.text_input("Nome do Alimento")
+            cat = st.text_input("Categoria (Ex: Secos)")
+            if st.form_submit_button("Salvar"):
+                with engine.connect() as conn:
+                    conn.execute(text("INSERT INTO produtos (nome, categoria) VALUES (:n, :c)"), {"n": nome, "c": cat})
+                    conn.commit()
+                st.success("Cadastrado!")
+
+if __name__ == "__main__":
     main()
