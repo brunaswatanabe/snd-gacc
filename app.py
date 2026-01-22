@@ -195,7 +195,8 @@ def main():
             p_c = st.checkbox("Permissão: Cadastrar")
             p_e = st.checkbox("Permissão: Excluir")
             if st.form_submit_button("Criar Usuário"):
-                c.execute("INSERT INTO usuarios VALUES (?,?,?,?,?,?,?)", (nu, hash_pass(np), nr, 1, int(p_l), int(p_e), int(p_c)))
+               conn.execute(text("INSERT INTO usuarios (username, password, role, trocar_senha, p_leitura, p_excluir, p_cadastrar) VALUES (:u, :p, :r, 1, :l, :e, :c)"),
+               {"u": nu, "p": senha_h, "r": nr, "l": int(p_lei), "e": int(p_exc), "c": int(p_cad)})
                 registar_log(conn, st.session_state['user'], "GESTÃO USUÁRIO", f"Criou: {nu}")
                 conn.commit(); st.success("Usuário criado!")
 
